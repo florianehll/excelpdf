@@ -116,12 +116,14 @@ def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_pat
     # Passer à la page 2 pour insérer la courbe et les titres
     can.showPage()
     
-    # Sur la page 2, écrire les titres en couleur #1C3062 (RGB : 28/255, 48/255, 98/255)
-    can.setFillColorRGB(28/255, 48/255, 98/255)
-    # Training Simulation Report - Shots Details : size 20, X=50, Y=850
+    # Sur la page 2, écrire les titres
+    # Training Simulation Report - Shots Details en blanc : size 20, X=50, Y=800
+    can.setFillColorRGB(1, 1, 1)  # Couleur blanche
     can.setFont("Comfortaa", 20)
     can.drawString(50, 800, "Training Simulation Report - Shots Details")
-    # Round 1 : size 16, X=50, Y=800
+    
+    # Round 1 en couleur #1C3062 (RGB : 28/255, 48/255, 98/255) : size 16, X=50, Y=765
+    can.setFillColorRGB(28/255, 48/255, 98/255)
     can.setFont("Comfortaa", 16)
     can.drawString(50, 765, "Round 1")
     
