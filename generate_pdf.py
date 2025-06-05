@@ -106,7 +106,7 @@ def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_pat
     # Mission Type : AIR-GROUND : X=160, Y=360
     can.drawString(163, 360, "AIR-GROUND")
     # Mission Name : Suippes : X=180, Y=342
-    can.drawString(179, 338, "Suippes")
+    can.drawString(179, 334, "Suippes")
     # Date : utilisation de la date formatée depuis l'Excel : X=84, Y=490
     can.drawString(86, 385, date_formatted)
     
