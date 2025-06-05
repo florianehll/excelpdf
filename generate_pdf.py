@@ -29,7 +29,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # === Charger le fichier Excel ===
 df = pd.read_excel(EXCEL_FILE)
-required_columns = ['ID', 'Nom', 'Prénom', 'Date d\'enregistrement']
+required_columns = ['ID', 'Nom', 'Prénom', 'Date d\'enregistrement', 'Type de mission']
 if not all(col in df.columns for col in required_columns):
     raise ValueError(f"Le fichier Excel doit contenir les colonnes : {required_columns}")
 print("Colonnes détectées dans Excel :", df.columns.tolist())
@@ -84,8 +84,25 @@ def find_courbe_files(base_dir, identifiant):
                 break
     return courbes
 
+# === Fonction pour déterminer le nom de mission selon le type ===
+def get_mission_name(mission_type):
+    """
+    Retourne le nom de la mission selon le type :
+    - AIR - GROUND -> Suippes
+    - AIR - AIR -> Taxan
+    """
+    if mission_type and isinstance(mission_type, str):
+        mission_type_clean = mission_type.strip().upper()
+        if "AIR - GROUND" in mission_type_clean or "AIR-GROUND" in mission_type_clean:
+            return "Suippes"
+        elif "AIR - AIR" in mission_type_clean or "AIR-AIR" in mission_type_clean:
+            return "Taxan"
+    
+    # Valeur par défaut si le type n'est pas reconnu
+    return "Suippes"
+
 # === Créer un PDF en mémoire avec ReportLab pour overlay ===
-def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbes_dict, date_formatted):
+def create_overlay(nom, prenom, avion, map_name, mission_type, mission_name, instructeur, photo_path, courbes_dict, date_formatted):
     packet = io.BytesIO()
     can = canvas.Canvas(packet, pagesize=A4)
     
@@ -103,10 +120,10 @@ def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_pat
     can.drawString(98, 309, f"{avion}")
     # Map (seulement le nom) : X=83, Y=284
     can.drawString(83, 284, f"{map_name}")
-    # Mission Type : AIR-GROUND : X=160, Y=360
-    can.drawString(163, 360, "AIR-GROUND")
-    # Mission Name : Suippes : X=180, Y=342
-    can.drawString(179, 334, "Suippes")
+    # Mission Type : utilise la valeur depuis l'Excel : X=160, Y=360
+    can.drawString(163, 360, mission_type)
+    # Mission Name : Suippes ou Taxan selon le type : X=180, Y=342
+    can.drawString(179, 334, mission_name)
     # Date : utilisation de la date formatée depuis l'Excel : X=84, Y=490
     can.drawString(86, 385, date_formatted)
     
@@ -242,7 +259,12 @@ for idx, row in df.iterrows():
     identifiant = str(row['ID'])
     nom = row['Nom']
     prenom = row['Prénom']
-    mission = row['Mission'] if 'Mission' in row and not pd.isna(row['Mission']) else ''
+    
+    # Récupération du type de mission depuis l'Excel
+    type_mission = row['Type de mission'] if 'Type de mission' in row and not pd.isna(row['Type de mission']) else 'AIR - GROUND'
+    
+    # Détermination du nom de mission selon le type
+    nom_mission = get_mission_name(type_mission)
     
     # Récupération et formatage de la date d'enregistrement
     date_enregistrement = row['Date d\'enregistrement'] if 'Date d\'enregistrement' in row else None
@@ -257,12 +279,13 @@ for idx, row in df.iterrows():
     nb_courbes = len(courbes_dict)
     
     print(f"\n--- Traitement de: {nom} {prenom} (ID: {identifiant})")
+    print(f"Type de mission: {type_mission} -> Nom de mission: {nom_mission}")
     print(f"Date d'enregistrement: {date_enregistrement} -> {date_formatted}")
     print(f"Photo: {photo_path}")
     print(f"Courbes trouvées: {list(courbes_dict.keys())} (Total: {nb_courbes})")
     print(f"Page 3 sera {'incluse' if nb_courbes > 2 else 'supprimée'}")
 
-    overlay_pdf = create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbes_dict, date_formatted)
+    overlay_pdf = create_overlay(nom, prenom, avion, map_name, type_mission, nom_mission, instructeur, photo_path, courbes_dict, date_formatted)
     output_file = os.path.join(OUTPUT_DIR, f"{identifiant}_{nom}_{prenom}.pdf")
     merge_overlay(TEMPLATE_FILE, overlay_pdf, output_file, nb_courbes)
     print(f"PDF généré : {output_file}")
