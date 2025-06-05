@@ -1,6 +1,7 @@
 import os
 import io
 import pandas as pd
+from datetime import datetime
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -28,10 +29,45 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # === Charger le fichier Excel ===
 df = pd.read_excel(EXCEL_FILE)
-required_columns = ['ID', 'Nom', 'Prénom']
+required_columns = ['ID', 'Nom', 'Prénom', 'Date d\'enregistrement']
 if not all(col in df.columns for col in required_columns):
     raise ValueError(f"Le fichier Excel doit contenir les colonnes : {required_columns}")
 print("Colonnes détectées dans Excel :", df.columns.tolist())
+
+# === Fonction utilitaire pour formater la date ===
+def format_date_from_excel(date_str):
+    """
+    Convertit une date du format Excel (2025-05-28T14:14:21.712Z) 
+    au format français (JJ/MM/AAAA)
+    """
+    try:
+        # Si c'est déjà un objet datetime pandas
+        if isinstance(date_str, pd.Timestamp):
+            return date_str.strftime("%d/%m/%Y")
+        
+        # Si c'est une chaîne de caractères
+        if isinstance(date_str, str):
+            # Supprimer le 'Z' à la fin et parser la date ISO
+            date_clean = date_str.replace('Z', '')
+            if 'T' in date_clean:
+                # Format ISO avec heure
+                dt = datetime.fromisoformat(date_clean)
+            else:
+                # Format date simple
+                dt = datetime.strptime(date_clean, "%Y-%m-%d")
+            return dt.strftime("%d/%m/%Y")
+        
+        # Si c'est un objet datetime
+        if isinstance(date_str, datetime):
+            return date_str.strftime("%d/%m/%Y")
+            
+        # Fallback - retourner une date par défaut
+        print(f"Format de date non reconnu: {date_str}, utilisation de la date actuelle")
+        return datetime.now().strftime("%d/%m/%Y")
+        
+    except Exception as e:
+        print(f"Erreur lors du formatage de la date '{date_str}': {e}")
+        return datetime.now().strftime("%d/%m/%Y")
 
 # === Fonction utilitaire pour retrouver la bonne extension de courbe ===
 def find_courbe_file(base_dir, identifiant):
@@ -42,7 +78,7 @@ def find_courbe_file(base_dir, identifiant):
     return None
 
 # === Créer un PDF en mémoire avec ReportLab pour overlay ===
-def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbe_path):
+def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbe_path, date_formatted):
     packet = io.BytesIO()
     can = canvas.Canvas(packet, pagesize=A4)
     
@@ -64,8 +100,8 @@ def create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_pat
     can.drawString(163, 360, "AIR-GROUND")
     # Mission Name : Suippes : X=180, Y=342
     can.drawString(179, 338, "Suippes")
-    # Date : 04/06/2025 : X=84, Y=490
-    can.drawString(86, 385, "04/06/2025")
+    # Date : utilisation de la date formatée depuis l'Excel : X=84, Y=490
+    can.drawString(86, 385, date_formatted)
     
     # Photo : coins (360,278) bas-gauche -> (565,560) haut-droit
     if os.path.exists(photo_path):
@@ -135,17 +171,24 @@ for idx, row in df.iterrows():
     nom = row['Nom']
     prenom = row['Prénom']
     mission = row['Mission'] if 'Mission' in row and not pd.isna(row['Mission']) else ''
+    
+    # Récupération et formatage de la date d'enregistrement
+    date_enregistrement = row['Date d\'enregistrement'] if 'Date d\'enregistrement' in row else None
+    date_formatted = format_date_from_excel(date_enregistrement)
+    
     avion = "M-2000C"
     map_name = "Caucasus"
     instructeur = "ARESIA"
 
     photo_path = os.path.join(PHOTOS_DIR, f"{identifiant}.jpg")
     courbe_path = find_courbe_file(COURBES_DIR, identifiant)
+    
     print(f"\n--- Traitement de: {nom} {prenom} (ID: {identifiant})")
+    print(f"Date d'enregistrement: {date_enregistrement} -> {date_formatted}")
     print(f"Photo: {photo_path}")
     print(f"Courbe: {courbe_path if courbe_path else 'non trouvée'}")
 
-    overlay_pdf = create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbe_path)
+    overlay_pdf = create_overlay(nom, prenom, avion, map_name, mission, instructeur, photo_path, courbe_path, date_formatted)
     output_file = os.path.join(OUTPUT_DIR, f"{identifiant}_{nom}_{prenom}.pdf")
     merge_overlay(TEMPLATE_FILE, overlay_pdf, output_file)
     print(f"PDF généré : {output_file}")
